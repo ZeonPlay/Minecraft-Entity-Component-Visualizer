@@ -525,20 +525,35 @@
         
         // Fungsi untuk mengubah bahasa
         function changeLanguage(lang) {
-            currentLanguage = lang;
-            
-            // Update tombol bahasa aktif
-            document.getElementById('lang-id').classList.toggle('active', lang === 'id');
-            document.getElementById('lang-en').classList.toggle('active', lang === 'en');
-            
-            // Update semua teks dengan terjemahan baru
-            updateUIText();
-            
-            // Render ulang detail entity jika ada yang aktif
-            if (currentEntityIndex !== -1) {
-                showDetail(currentEntityIndex);
-            }
-        }
+          try {
+              currentLanguage = lang;
+              
+              // Update tombol bahasa aktif
+              const btnId = document.getElementById('lang-id');
+              const btnEn = document.getElementById('lang-en');
+              
+              if (btnId && btnEn) {
+                  btnId.classList.remove('active');
+                  btnEn.classList.remove('active');
+                  
+                  if (lang === 'id') {
+                      btnId.classList.add('active');
+                  } else {
+                      btnEn.classList.add('active');
+                  }
+              }
+              
+              // Update semua teks dengan terjemahan baru
+              updateUIText();
+              
+              // Render ulang detail entity jika ada yang aktif
+              if (currentEntityIndex !== -1) {
+                  showDetail(currentEntityIndex);
+              }
+          } catch (error) {
+              console.error('Error changing language:', error);
+          }
+      }
         
         // Fungsi untuk memperbarui teks UI berdasarkan bahasa
         function updateUIText() {
@@ -888,7 +903,7 @@
                 Object.keys(raw.events).forEach(key => {
                     const card = document.createElement('div');
                     card.className = 'component-card';
-                    card.innerHTML = `<div class="component-title" style="color:${translations[currentLanguage].noEvents ? '#ce9178' : '#ce9178'}">${key}</div>`;
+                    card.innerHTML = `<div class="component-title">${key}</div>`;
                     card.innerHTML += renderJSON(raw.events[key], 0);
                     eventContainer.appendChild(card);
                 });
