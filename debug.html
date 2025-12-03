@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JSON Validator</title>
+</head>
+<body>
+    <h1>Validasi File JSON</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function validateAllFiles() {
+            const response = await fetch('list.json');
+            const fileList = await response.json();
+            const results = document.getElementById('results');
+            
+            for (const fileName of fileList) {
+                try {
+                    const fileResponse = await fetch('./data/' + fileName);
+                    const text = await fileResponse.text();
+                    
+                    try {
+                        const json = JSON.parse(text);
+                        if (json["minecraft:entity"]) {
+                            results.innerHTML += `<div style="color: green;">✅ ${fileName} - OK</div>`;
+                        } else {
+                            results.innerHTML += `<div style="color: orange;">⚠️ ${fileName} - Tidak memiliki "minecraft:entity"</div>`;
+                        }
+                    } catch (e) {
+                        results.innerHTML += `<div style="color: red;">❌ ${fileName} - JSON invalid: ${e.message}</div>`;
+                    }
+                } catch (e) {
+                    results.innerHTML += `<div style="color: red;">❌ ${fileName} - Gagal load: ${e.message}</div>`;
+                }
+            }
+        }
+        
+        validateAllFiles();
+    </script>
+</body>
+</html>

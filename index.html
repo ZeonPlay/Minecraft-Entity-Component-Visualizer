@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>Minecraft Bedrock Entity Visualizer</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/json5@2.2.3/dist/index.min.js"></script>
     <style>
         :root {
             /* Warna tema */
@@ -462,6 +463,9 @@
                 
                 <h3 id="desc-title">Description</h3>
                 <div id="desc-container" class="component-card"></div>
+                
+                <h3 id="component-groups-title">Component Groups</h3>
+                <div id="component-groups-container" style="margin-bottom: 20px;"></div>
 
                 <h3 id="components-title">Components</h3>
                 <div id="components-container"></div>
@@ -495,11 +499,13 @@
                 welcomeHint: "Gunakan kotak pencarian untuk mencari entity dengan nama atau ID.",
                 entityCount: "entity",
                 descTitle: "Description",
+                componentsGroupsTitle: "Component Group",
                 componentsTitle: "Components",
                 eventsTitle: "Events",
                 rawJsonTitle: "Raw JSON",
                 copyBtnText: "Salin JSON",
                 copiedText: "JSON disalin!",
+                noComponentGroups: "Tidak ada component groups.",
                 noComponents: "Tidak ada komponen.",
                 noEvents: "Tidak ada events."
             },
@@ -513,11 +519,13 @@
                 welcomeHint: "Use the search box to find entities by name or ID.",
                 entityCount: "entities",
                 descTitle: "Description",
+                componentGroupsTitle: "Component Groups",
                 componentsTitle: "Components",
                 eventsTitle: "Events",
                 rawJsonTitle: "Raw JSON",
                 copyBtnText: "Copy JSON",
                 copiedText: "JSON copied!",
+                noComponentGroups: "No component groups.",
                 noComponents: "No components.",
                 noEvents: "No events."
             }
@@ -728,64 +736,372 @@
             }, 3000);
         }
         
-        async function loadAutoFiles() {
-            const statusDiv = document.getElementById('loading-status');
-            const DATA_FOLDER = './data/';
-            const LIST_FILE = 'list.json';
+        // Fungsi untuk membersihkan komentar dari JSON
+function cleanJSON(jsonText) {
+    // Hapus komentar satu baris (// ...)
+    let cleaned = jsonText.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*)/g, 
+        (match, group) => group ? "" : match);
+    
+    // Hapus komentar multi-baris (/* ... */)
+    cleaned = cleaned.replace(/\\"|"(?:\\"|[^"])*"|(\/\*[\s\S]*?\*\/)/g,
+        (match, group) => group ? "" : match);
+    
+    // Perbaiki trailing commas (koma sebelum } atau ])
+    cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+    
+    return cleaned;
+}
+
+// Fungsi untuk mencoba memperbaiki property names yang tidak dikutip dengan benar
+function fixPropertyNames(jsonText) {
+    // Cari property names tanpa quotes (bukan dalam string)
+    const lines = jsonText.split('\n');
+    const fixedLines = lines.map(line => {
+        // Pattern untuk property names tanpa quotes (yang valid di JSON5)
+        // Contoh: property: value -> "property": value
+        return line.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/g, '$1"$2"$3');
+    });
+    
+    return fixedLines.join('\n');
+}
+
+// Fungsi untuk mencoba parse JSON dengan beberapa metode
+function safeJSONParse(text, fileName) {
+    try {
+        // Coba parse langsung
+        return JSON.parse(text);
+    } catch (firstError) {
+        console.log(`Gagal parse langsung ${fileName}, mencoba bersihkan komentar...`);
+        
+        try {
+            // Bersihkan komentar dan coba lagi
+            const cleaned = cleanJSON(text);
+            return JSON.parse(cleaned);
+        } catch (secondError) {
+            console.log(`Gagal dengan cleanJSON ${fileName}, mencoba fixPropertyNames...`);
             
             try {
-                // 1. Ambil daftar file (list.json)
-                const response = await fetch(LIST_FILE);
-                if (!response.ok) throw new Error("Gagal memuat list.json");
+                // Coba perbaiki property names (JSON5 style)
+                const fixed = fixPropertyNames(text);
+                const cleaned = cleanJSON(fixed);
+                return JSON.parse(cleaned);
+            } catch (thirdError) {
+                console.log(`Semua metode gagal untuk ${fileName}, error:`, thirdError.message);
                 
-                const fileList = await response.json();
-                statusDiv.innerHTML = `<div class="loading-spinner"></div><span id="loading-text">${translations[currentLanguage].loadingText} (${fileList.length} files)</span>`;
-
-                // 2. Loop dan fetch setiap file di folder data
-                const fetchPromises = fileList.map(fileName => 
-                    fetch(DATA_FOLDER + fileName)
-                        .then(res => res.json())
-                        .then(json => {
-                            // Proses JSON
-                            if (json["minecraft:entity"]) {
-                                const entityNode = json["minecraft:entity"];
-                                const identifier = entityNode.description ? entityNode.description.identifier : "Unknown";
-                                const shortName = identifier.replace("minecraft:", "").replace(/_/g, " ");
-                                
-                                return {
-                                    id: identifier,
-                                    name: capitalizeWords(shortName),
-                                    raw: entityNode,
-                                    fileName: fileName
-                                };
-                            }
-                            return null;
-                        })
-                        .catch(err => {
-                            console.warn(`Gagal memuat ${fileName}`, err);
-                            return null;
-                        })
-                );
-
-                // Tunggu semua file selesai di-download
-                const results = await Promise.all(fetchPromises);
+                // Log error untuk debugging
+                console.error(`File ${fileName} menyebabkan error:`, thirdError.message);
                 
-                // Filter yang null (gagal/bukan entity)
-                entitiesData = results.filter(item => item !== null);
+                // Untuk debugging, tampilkan potongan yang bermasalah
+                const lines = text.split('\n');
+                const errorLine = thirdError.message.match(/line (\d+)/);
+                if (errorLine) {
+                    const lineNum = parseInt(errorLine[1]) - 1;
+                    const start = Math.max(0, lineNum - 2);
+                    const end = Math.min(lines.length, lineNum + 3);
+                    console.log("Potongan kode bermasalah:", lines.slice(start, end).join('\n'));
+                }
                 
-                renderList();
-                statusDiv.innerHTML = `<span style="color: #4caf50;"><i class="fas fa-check-circle"></i> Data siap! (${entitiesData.length} entity)</span>`;
-                
-                // Sembunyikan status setelah 2 detik
-                setTimeout(() => {
-                    statusDiv.style.display = 'none';
-                }, 2000);
-
-            } catch (error) {
-                console.error(error);
-                throw error; // Dilempar ke pemanggil untuk ditangani
+                throw thirdError;
             }
         }
+    }
+}
+
+async function loadAutoFiles() {
+    const statusDiv = document.getElementById('loading-status');
+    const DATA_FOLDER = './data/';
+    const LIST_FILE = 'list.json';
+    
+    try {
+        // 1. Ambil daftar file (list.json)
+        statusDiv.innerHTML = `<div class="loading-spinner"></div><span id="loading-text">${translations[currentLanguage].loadingText} (memuat daftar...)</span>`;
+        
+        const response = await fetch(LIST_FILE);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: Gagal memuat list.json`);
+        }
+        
+        const fileList = await response.json();
+        
+        // Update status dengan progress bar visual
+        statusDiv.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span id="loading-text">${translations[currentLanguage].loadingText}</span>
+            <div style="margin-top: 10px; width: 100%; background: #333; border-radius: 5px; overflow: hidden;">
+                <div id="progress-bar" style="width: 0%; height: 4px; background: var(--accent-color); transition: width 0.3s;"></div>
+            </div>
+            <div style="font-size: 0.8em; margin-top: 5px; color: #aaa;">
+                <span id="progress-text">0/${fileList.length}</span>
+            </div>
+        `;
+        
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        
+        // 2. Load file dengan rate limiting (batch processing)
+        entitiesData = [];
+        const failedFiles = [];
+        const partiallyFixedFiles = [];
+        
+        // Process in batches of 5 files at a time (lebih kecil untuk debugging)
+        const batchSize = 5;
+        for (let i = 0; i < fileList.length; i += batchSize) {
+            const batch = fileList.slice(i, i + batchSize);
+            const batchPromises = batch.map(async (fileName, index) => {
+                try {
+                    // Timeout untuk mencegah hanging request
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 detik timeout
+                    
+                    const fileResponse = await fetch(DATA_FOLDER + fileName, {
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!fileResponse.ok) {
+                        throw new Error(`HTTP ${fileResponse.status} untuk ${fileName}`);
+                    }
+                    
+                    const text = await fileResponse.text();
+                    
+                    // Validasi file tidak kosong
+                    if (!text.trim()) {
+                        throw new Error(`File ${fileName} kosong`);
+                    }
+                    
+                    let json;
+                    let isFixed = false;
+                    
+                    try {
+                        // Coba parse dengan metode aman
+                        json = safeJSONParse(text, fileName);
+                    } catch (parseError) {
+                        console.warn(`Metode parsing gagal untuk ${fileName}, mencoba perbaikan manual...`);
+                        
+                        // Coba perbaikan manual yang lebih agresif
+                        let fixedText = text;
+                        
+                        // 1. Hapus semua komentar (agresif)
+                        fixedText = fixedText.replace(/\s*\/\/.*$/gm, '');
+                        fixedText = fixedText.replace(/\/\*[\s\S]*?\*\//g, '');
+                        
+                        // 2. Perbaiki trailing commas
+                        fixedText = fixedText.replace(/,\s*([}\]])/g, '$1');
+                        
+                        // 3. Tambahkan quotes pada property names yang tidak punya
+                        fixedText = fixedText.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/g, '$1"$2"$3');
+                        
+                        // 4. Perbaiki array dengan koma yang salah
+                        fixedText = fixedText.replace(/,\s*]/g, ']');
+                        
+                        try {
+                            json = JSON.parse(fixedText);
+                            isFixed = true;
+                            console.log(`File ${fileName} berhasil diperbaiki secara manual`);
+                            partiallyFixedFiles.push(fileName);
+                        } catch (finalError) {
+                            // Untuk debugging lebih lanjut, simpan file yang bermasalah
+                            console.error(`File ${fileName} tidak bisa diperbaiki:`, finalError.message);
+                            throw new Error(`JSON tidak valid setelah perbaikan: ${finalError.message}`);
+                        }
+                    }
+                    
+                    // Validasi struktur entity
+                    if (!json || !json["minecraft:entity"]) {
+                        console.warn(`File ${fileName} bukan file entity yang valid`);
+                        // Tapi kita tetap coba proses
+                        if (!json) json = {};
+                        if (!json["minecraft:entity"]) {
+                            json["minecraft:entity"] = {
+                                description: {
+                                    identifier: fileName.replace('.json', ''),
+                                    note: "File tidak memiliki struktur minecraft:entity yang valid"
+                                },
+                                components: {},
+                                events: {}
+                            };
+                        }
+                    }
+                    
+                    const entityNode = json["minecraft:entity"];
+                    
+                    // Pastikan ada description dan identifier
+                    if (!entityNode.description) {
+                        entityNode.description = { 
+                            identifier: fileName.replace('.json', ''),
+                            note: "File tidak memiliki description"
+                        };
+                    }
+                    
+                    const identifier = entityNode.description.identifier || fileName.replace('.json', '');
+                    const shortName = identifier.replace("minecraft:", "").replace(/_/g, " ");
+                    
+                    return {
+                        id: identifier,
+                        name: capitalizeWords(shortName),
+                        raw: entityNode,
+                        fileName: fileName,
+                        isFixed: isFixed,
+                        isFallback: false
+                    };
+                } catch (error) {
+                    console.warn(`Gagal memuat ${fileName}:`, error.message);
+                    failedFiles.push({ 
+                        fileName, 
+                        error: error.message,
+                        isCommentError: error.message.includes('comment') || 
+                                       error.message.includes('//') || 
+                                       error.message.includes('/*')
+                    });
+                    
+                    // Return fallback data untuk file yang gagal
+                    const entityId = fileName.replace('.json', '');
+                    return {
+                        id: entityId,
+                        name: capitalizeWords(entityId.replace(/_/g, " ")),
+                        raw: {
+                            description: {
+                                identifier: entityId,
+                                is_spawnable: true,
+                                is_summonable: true,
+                                is_experimental: false,
+                                note: `File asli gagal dimuat: ${error.message}`
+                            },
+                            components: {
+                                "minecraft:health": {
+                                    value: 20,
+                                    max: 20,
+                                    note: "Data fallback karena file JSON bermasalah"
+                                }
+                            },
+                            events: {}
+                        },
+                        fileName: fileName,
+                        isFallback: true
+                    };
+                }
+            });
+            
+            // Tunggu batch selesai
+            const batchResults = await Promise.allSettled(batchPromises);
+            
+            // Tambahkan yang berhasil
+            batchResults.forEach(result => {
+                if (result.status === 'fulfilled' && result.value) {
+                    entitiesData.push(result.value);
+                }
+            });
+            
+            // Update progress
+            const processed = Math.min(i + batchSize, fileList.length);
+            const progressPercent = (processed / fileList.length) * 100;
+            
+            if (progressBar) {
+                progressBar.style.width = `${progressPercent}%`;
+            }
+            
+            if (progressText) {
+                progressText.textContent = `${processed}/${fileList.length}`;
+            }
+            
+            // Beri sedikit delay antar batch
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        // Filter duplikat berdasarkan ID
+        const uniqueEntities = [];
+        const seenIds = new Set();
+        
+        entitiesData.forEach(entity => {
+            if (!seenIds.has(entity.id)) {
+                seenIds.add(entity.id);
+                uniqueEntities.push(entity);
+            }
+        });
+        
+        entitiesData = uniqueEntities;
+        
+        // Tampilkan status akhir dengan info file yang gagal
+        let statusHTML = `<span style="color: #4caf50;"><i class="fas fa-check-circle"></i> Data siap! (${entitiesData.length} entity berhasil dimuat)</span>`;
+        
+        if (failedFiles.length > 0) {
+            statusHTML += `<br><span style="color: #ff9800; font-size: 0.9em;">
+                <i class="fas fa-exclamation-triangle"></i> ${failedFiles.length} file gagal dimuat (masih ditampilkan dengan data fallback)
+            </span>`;
+            
+            // Pisahkan file yang gagal karena komentar
+            const commentErrors = failedFiles.filter(f => f.isCommentError);
+            if (commentErrors.length > 0) {
+                statusHTML += `<br><span style="color: #ff5722; font-size: 0.8em;">
+                    <i class="fas fa-code"></i> ${commentErrors.length} file mengandung komentar JSON yang tidak valid
+                </span>`;
+            }
+        }
+        
+        if (partiallyFixedFiles.length > 0) {
+            statusHTML += `<br><span style="color: #2196f3; font-size: 0.9em;">
+                <i class="fas fa-wrench"></i> ${partiallyFixedFiles.length} file diperbaiki otomatis (mengandung komentar/trailing commas)
+            </span>`;
+        }
+        
+        // Tampilkan peringatan jika menggunakan data fallback
+        const fallbackCount = entitiesData.filter(e => e.isFallback).length;
+        if (fallbackCount > 0) {
+            statusHTML += `<br><span style="color: #9c27b0; font-size: 0.9em;">
+                <i class="fas fa-info-circle"></i> ${fallbackCount} entity menggunakan data fallback
+            </span>`;
+        }
+        
+        // Tampilkan tombol untuk melihat detail error
+        if (failedFiles.length > 0 || partiallyFixedFiles.length > 0) {
+            statusHTML += `<br><button id="show-errors-btn" style="margin-top: 10px; padding: 5px 10px; background: #333; border: 1px solid #555; color: #aaa; border-radius: 4px; font-size: 0.8em; cursor: pointer;">
+                <i class="fas fa-bug"></i> Tampilkan Detail Masalah
+            </button>`;
+        }
+        
+        statusDiv.innerHTML = statusHTML;
+        
+        // Tambahkan event listener untuk tombol detail error
+        const showErrorsBtn = document.getElementById('show-errors-btn');
+        if (showErrorsBtn) {
+            showErrorsBtn.addEventListener('click', () => {
+                alert(`File yang diperbaiki otomatis (${partiallyFixedFiles.length}):\n${partiallyFixedFiles.join(', ')}\n\n` +
+                      `File yang menggunakan fallback (${failedFiles.length}):\n${failedFiles.map(f => f.fileName).join(', ')}`);
+            });
+        }
+        
+        renderList();
+        
+        // Sembunyikan status setelah 5 detik
+        setTimeout(() => {
+            statusDiv.style.opacity = '0.7';
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 1000);
+        }, 5000);
+        
+    } catch (error) {
+        console.error("Kesalahan utama dalam loadAutoFiles:", error);
+        statusDiv.innerHTML = `<span style="color: #f44336;">
+            <i class="fas fa-exclamation-circle"></i> Error: ${error.message}
+        </span>`;
+        
+        // Fallback ke data contoh setelah 2 detik
+        setTimeout(() => {
+            useFallbackData();
+        }, 2000);
+    }
+}
+
+// Perbaiki juga fungsi capitalizeWords untuk handle error
+function capitalizeWords(str) {
+    if (!str || typeof str !== 'string') return 'Unknown Entity';
+    return str
+        .replace(/\b\w/g, l => l.toUpperCase())
+        .replace(/\bmc\b/gi, 'MC')
+        .replace(/\bid\b/gi, 'ID');
+}
 
         function capitalizeWords(str) {
             return str.replace(/\b\w/g, l => l.toUpperCase());
@@ -868,53 +1184,68 @@
         }
 
         function showDetail(index) {
-            currentEntityIndex = index;
-            const data = entitiesData[index];
-            const raw = data.raw;
+    currentEntityIndex = index;
+    const data = entitiesData[index];
+    const raw = data.raw;
 
-            document.getElementById('welcome-msg').style.display = 'none';
-            document.getElementById('details-view').style.display = 'block';
-            document.getElementById('entity-name').innerText = data.name;
-            document.getElementById('entity-id').innerText = `identifier: ${data.id}`;
+    document.getElementById('welcome-msg').style.display = 'none';
+    document.getElementById('details-view').style.display = 'block';
+    document.getElementById('entity-name').innerText = data.name;
+    document.getElementById('entity-id').innerText = `identifier: ${data.id}`;
 
-            // Render Description
-            document.getElementById('desc-container').innerHTML = renderJSON(raw.description, 0);
+    // Render Description
+    document.getElementById('desc-container').innerHTML = renderJSON(raw.description, 0);
 
-            // Render Components
-            const compContainer = document.getElementById('components-container');
-            compContainer.innerHTML = '';
-            if (raw.components && Object.keys(raw.components).length > 0) {
-                Object.keys(raw.components).forEach(key => {
-                    const cleanTitle = key.replace("minecraft:", "");
-                    const card = document.createElement('div');
-                    card.className = 'component-card';
-                    card.innerHTML = `<div class="component-title">${cleanTitle}</div>`;
-                    card.innerHTML += renderJSON(raw.components[key], 0);
-                    compContainer.appendChild(card);
-                });
-            } else {
-                compContainer.innerHTML = `<p style="color:#777">${translations[currentLanguage].noComponents}</p>`;
-            }
+    // Render Component Groups
+    const compGroupContainer = document.getElementById('component-groups-container');
+    compGroupContainer.innerHTML = '';
+    if (raw.component_groups && Object.keys(raw.component_groups).length > 0) {
+        Object.keys(raw.component_groups).forEach(key => {
+            const card = document.createElement('div');
+            card.className = 'component-card';
+            card.innerHTML = `<div class="component-title">${key}</div>`;
+            card.innerHTML += renderJSON(raw.component_groups[key], 0);
+            compGroupContainer.appendChild(card);
+        });
+    } else {
+        compGroupContainer.innerHTML = `<p style="color:#777">${translations[currentLanguage].noComponentGroups || 'No component groups.'}</p>`;
+    }
 
-            // Render Events
-            const eventContainer = document.getElementById('events-container');
-            eventContainer.innerHTML = '';
-            if (raw.events && Object.keys(raw.events).length > 0) {
-                Object.keys(raw.events).forEach(key => {
-                    const card = document.createElement('div');
-                    card.className = 'component-card';
-                    card.innerHTML = `<div class="component-title">${key}</div>`;
-                    card.innerHTML += renderJSON(raw.events[key], 0);
-                    eventContainer.appendChild(card);
-                });
-            } else {
-                eventContainer.innerHTML = `<p style="color:#777">${translations[currentLanguage].noEvents}</p>`;
-            }
-            
-            // Tampilkan raw JSON
-            document.getElementById('raw-json-container').style.display = 'block';
-            document.getElementById('raw-json').textContent = JSON.stringify(raw, null, 2);
-        }
+    // Render Components
+    const compContainer = document.getElementById('components-container');
+    compContainer.innerHTML = '';
+    if (raw.components && Object.keys(raw.components).length > 0) {
+        Object.keys(raw.components).forEach(key => {
+            const cleanTitle = key.replace("minecraft:", "");
+            const card = document.createElement('div');
+            card.className = 'component-card';
+            card.innerHTML = `<div class="component-title">${cleanTitle}</div>`;
+            card.innerHTML += renderJSON(raw.components[key], 0);
+            compContainer.appendChild(card);
+        });
+    } else {
+        compContainer.innerHTML = `<p style="color:#777">${translations[currentLanguage].noComponents}</p>`;
+    }
+
+    // Render Events
+    const eventContainer = document.getElementById('events-container');
+    eventContainer.innerHTML = '';
+    if (raw.events && Object.keys(raw.events).length > 0) {
+        Object.keys(raw.events).forEach(key => {
+            const card = document.createElement('div');
+            card.className = 'component-card';
+            card.innerHTML = `<div class="component-title">${key}</div>`;
+            card.innerHTML += renderJSON(raw.events[key], 0);
+            eventContainer.appendChild(card);
+        });
+    } else {
+        eventContainer.innerHTML = `<p style="color:#777">${translations[currentLanguage].noEvents}</p>`;
+    }
+    
+    // Tampilkan raw JSON
+    document.getElementById('raw-json-container').style.display = 'block';
+    document.getElementById('raw-json').textContent = JSON.stringify(raw, null, 2);
+}
 
         function renderJSON(obj, depth) {
             if (typeof obj !== 'object' || obj === null) {

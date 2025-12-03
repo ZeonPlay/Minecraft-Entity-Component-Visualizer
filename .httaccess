@@ -1,0 +1,9 @@
+# Allow CORS for JSON files
+<FilesMatch "\.(json)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET"
+    Header set Access-Control-Allow-Headers "Content-Type"
+</FilesMatch>
+
+# Set MIME types
+AddType application/json .json
