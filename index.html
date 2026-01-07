@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>Minecraft Bedrock Entity Visualizer</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/json5@2.2.3/dist/index.min.js"></script>
+    <link rel="stylesheet" href="./assets/font-awesome.min.css">
+    <script src="./assets/json5.min.js"></script>
     <style>
         :root {
             /* Warna tema */
@@ -174,8 +174,11 @@
         }
         
         .entity-icon {
-            font-size: var(--font-lg);
-            opacity: 0.7;
+            width: 20px;
+            height: 20px;
+            background-color: var(--accent-color);
+            border-radius: 50%;
+            margin-right: var(--spacing-sm);
         }
         
         .entity-count {
@@ -563,23 +566,37 @@
           }
       }
         
+        // Ensure elements exist before updating their textContent
+const safeUpdateTextContent = (id, text) => {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = text;
+    }
+};
+
         // Fungsi untuk memperbarui teks UI berdasarkan bahasa
         function updateUIText() {
             const t = translations[currentLanguage];
             
             // Update semua elemen dengan teks terjemahan
-            document.getElementById('app-title').textContent = t.appTitle;
-            document.getElementById('sidebar-title').textContent = t.sidebarTitle;
-            document.getElementById('loading-text').textContent = t.loadingText;
-            document.getElementById('searchInput').placeholder = t.searchPlaceholder;
-            document.getElementById('welcome-title').textContent = t.welcomeTitle;
-            document.getElementById('welcome-text').textContent = t.welcomeText;
-            document.getElementById('welcome-hint').innerHTML = `<i class="fas fa-lightbulb"></i> ${t.welcomeHint}`;
-            document.getElementById('desc-title').textContent = t.descTitle;
-            document.getElementById('components-title').textContent = t.componentsTitle;
-            document.getElementById('events-title').textContent = t.eventsTitle;
-            document.getElementById('raw-json-title').textContent = t.rawJsonTitle;
-            document.getElementById('copy-btn-text').textContent = t.copyBtnText;
+            safeUpdateTextContent('app-title', t.appTitle);
+            safeUpdateTextContent('sidebar-title', t.sidebarTitle);
+            safeUpdateTextContent('loading-text', t.loadingText);
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.placeholder = t.searchPlaceholder;
+            }
+            safeUpdateTextContent('welcome-title', t.welcomeTitle);
+            safeUpdateTextContent('welcome-text', t.welcomeText);
+            const welcomeHint = document.getElementById('welcome-hint');
+            if (welcomeHint) {
+                welcomeHint.innerHTML = `<i class="fas fa-lightbulb"></i> ${t.welcomeHint}`;
+            }
+            safeUpdateTextContent('desc-title', t.descTitle);
+            safeUpdateTextContent('components-title', t.componentsTitle);
+            safeUpdateTextContent('events-title', t.eventsTitle);
+            safeUpdateTextContent('raw-json-title', t.rawJsonTitle);
+            safeUpdateTextContent('copy-btn-text', t.copyBtnText);
             
             // Update entity count text
             const entityCountDiv = document.getElementById('entity-count');
@@ -1139,7 +1156,7 @@ function capitalizeWords(str) {
                 
                 div.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <i class="${icon} entity-icon"></i>
+                        <div class="entity-icon"></div>
                         <div>
                             <div><b>${entity.name}</b></div>
                             <div style="font-size: 0.8em; color: #888;">${entity.id}</div>

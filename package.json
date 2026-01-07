@@ -1,0 +1,32 @@
+{
+  "name": "minecraft-entity-visualizer",
+  "displayName": "Minecraft Entity Component Visualizer",
+  "description": "Visualize Minecraft Bedrock entity components",
+  "publisher": "zeonplay",
+  "repository": "",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onCommand:minecraftEntityVisualizer.open"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "minecraftEntityVisualizer.open",
+        "title": "Open Minecraft Entity Visualizer"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.0"
+  }
+}
