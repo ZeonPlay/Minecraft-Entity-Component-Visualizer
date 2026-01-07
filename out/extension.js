@@ -8,7 +8,10 @@ function activate(context) {
     let disposable = vscode.commands.registerCommand('minecraftEntityVisualizer.open', () => {
         const panel = vscode.window.createWebviewPanel('minecraftEntityVisualizer', 'Minecraft Entity Visualizer', vscode.ViewColumn.One, {
             enableScripts: true,
-            localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'assets'))]
+            localResourceRoots: [
+                vscode.Uri.file(path.join(context.extensionPath, 'assets')),
+                vscode.Uri.file(path.join(context.extensionPath, 'data'))
+            ]
         });
         // Baca index.html dan ganti path agar kompatibel dengan webview
         const htmlPath = vscode.Uri.file(path.join(context.extensionPath, 'index.html'));
@@ -16,6 +19,11 @@ function activate(context) {
         // Ganti path relatif agar webview bisa akses file lokal
         const assetsUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets')));
         htmlContent = htmlContent.replace('./assets/', assetsUri.toString() + '/');
+        const dataUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'data')));
+        htmlContent = htmlContent.replace('./data/', dataUri.toString() + '/');
+        // Ganti path untuk list.json di root
+        const listUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'list.json')));
+        htmlContent = htmlContent.replace('list.json', listUri.toString());
         panel.webview.html = htmlContent;
     });
     context.subscriptions.push(disposable);

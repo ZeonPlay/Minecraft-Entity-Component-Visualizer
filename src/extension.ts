@@ -10,7 +10,10 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.ViewColumn.One,
       {
         enableScripts: true,
-        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'assets'))]
+        localResourceRoots: [
+          vscode.Uri.file(path.join(context.extensionPath, 'assets')),
+          vscode.Uri.file(path.join(context.extensionPath, 'data'))
+        ]
       }
     );
 
@@ -21,6 +24,13 @@ export function activate(context: vscode.ExtensionContext) {
     // Ganti path relatif agar webview bisa akses file lokal
     const assetsUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets')));
     htmlContent = htmlContent.replace('./assets/', assetsUri.toString() + '/');
+
+    const dataUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'data')));
+    htmlContent = htmlContent.replace('./data/', dataUri.toString() + '/');
+
+    // Ganti path untuk list.json di root
+    const listUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'list.json')));
+    htmlContent = htmlContent.replace('list.json', listUri.toString());
 
     panel.webview.html = htmlContent;
   });
